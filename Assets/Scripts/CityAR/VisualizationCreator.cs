@@ -1,12 +1,19 @@
-﻿using DefaultNamespace;
+﻿using System;
+using Microsoft.MixedReality.Toolkit;
+using Microsoft.MixedReality.Toolkit.Utilities;
+using UnityEditor;
 using UnityEngine;
+using Quaternion = UnityEngine.Quaternion;
+using Vector3 = UnityEngine.Vector3;
 
 namespace CityAR
 {
     public class VisualizationCreator : MonoBehaviour
     {
 
+        public static string mode = "number of lines";
         public GameObject districtPrefab;
+        public GameObject buildingPrefab;
         private DataObject _dataObject;
         private GameObject _platform;
         private Data _data;
@@ -16,6 +23,11 @@ namespace CityAR
             _platform = GameObject.Find("Platform");
             _data = _platform.GetComponent<Data>();
             _dataObject = _data.ParseData();
+            BuildCity(_dataObject);
+        }
+        
+        public void BuildCity()
+        {
             BuildCity(_dataObject);
         }
 
@@ -39,6 +51,9 @@ namespace CityAR
             if (entry.type.Equals("File"))
             {
                 //TODO if entry is from type File, create building
+                entry.color = GetColorForDepth(entry.numberOfMethods / 10);
+
+                BuildBuilding(entry);
             }
             else
             {
@@ -101,6 +116,51 @@ namespace CityAR
             }
         }
 
+        private void BuildBuilding(Entry entry)
+        {
+            Transform myTransform = entry.parentEntry.goc.gameObject.transform;
+            GameObject prefabInstance = Instantiate(buildingPrefab, myTransform,true);
+            
+            prefabInstance.name = entry.name.TrimEnd(".java".ToCharArray());
+            EntryData entryData = prefabInstance.AddComponent<EntryData>();
+            entryData.entry = entry;
+            prefabInstance.transform.GetComponent<MeshRenderer>().material.color = new Color(1f, 0f, 0f);
+            
+            prefabInstance.transform.localScale = new Vector3(0.05f, calculateHight(entry), 0.05f);
+            entry.parentEntry.goc.UpdateCollection();
+        }
+
+        private float calculateHight(Entry entry)
+        {
+            float hight = 0f;
+            switch (mode)
+            {
+                case "number of lines":
+                {
+                    hight = 10f * (float) Math.Log(entry.numberOfLines);
+                    break;
+                }
+                case "number of methods":
+                {
+                    hight = entry.numberOfMethods;
+                    break;
+                    
+                }
+                case "number of abstract classes":
+                {
+                    hight = entry.numberOfAbstractClasses * 10;
+                    break; 
+                }
+                case "number of interfaces":
+                {
+                    hight = entry.numberOfInterfaces * 10;
+                    break;
+                }
+            }
+            return hight;
+        }
+            
+
         /*
          * entry: Single entry from the data set. This can be either a folder or a single file.
          * isBase: If true, the entry has no further subfolders. Buildings must be placed on top of the entry
@@ -128,13 +188,14 @@ namespace CityAR
                 }
                 else
                 {
+                    prefabInstance.SetActive(false);
                     prefabInstance.name = entry.name+"Base";
                     prefabInstance.transform.GetChild(0).rotation = Quaternion.Euler(90,0,0);
                     prefabInstance.transform.localScale = new Vector3(entry.w, 1,entry.h);
                     prefabInstance.transform.localPosition = new Vector3(entry.x, entry.deepth+0.001f, entry.z);
-
+                    
                 }
-                
+
                 Vector3 scale = prefabInstance.transform.localScale;
                 float scaleX = scale.x - (entry.deepth * 0.005f);
                 float scaleZ = scale.z - (entry.deepth * 0.005f);
@@ -143,6 +204,16 @@ namespace CityAR
                 prefabInstance.transform.localScale = new Vector3(scaleX, scale.y, scaleZ);
                 Vector3 position = prefabInstance.transform.localPosition;
                 prefabInstance.transform.localPosition = new Vector3(position.x - shiftX, position.y, position.z + shiftZ);
+                
+                //TODO add GridObject Collection to position buildings
+                entry.goc = prefabInstance.AddComponent<GridObjectCollection>();
+                entry.goc.Anchor = LayoutAnchor.UpperLeft;
+                int childCount = prefabInstance.transform.childCount;
+                entry.goc.Rows = Mathf.CeilToInt(Mathf.Sqrt(childCount));
+                entry.goc.Columns = Mathf.CeilToInt(Mathf.Sqrt(childCount));
+                entry.goc.Layout = LayoutOrder.ColumnThenRow;
+                entry.goc.CellHeight = 0.1f;
+                entry.goc.CellWidth = 0.1f;
             }
         }
 
@@ -185,6 +256,16 @@ namespace CityAR
             }
 
             return color;
+        }
+        
+        public class EntryData : MonoBehaviour
+        {
+            public Entry entry;
+
+            public EntryData(Entry entry)
+            {
+                this.entry = entry;
+            }
         }
     }
 }

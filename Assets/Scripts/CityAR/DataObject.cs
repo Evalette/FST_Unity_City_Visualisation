@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Microsoft.MixedReality.Toolkit.Utilities;
 using UnityEngine;
 
-namespace DefaultNamespace
+namespace CityAR
 {
     [Serializable]
     public class DataObject
